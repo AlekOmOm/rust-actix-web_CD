@@ -57,7 +57,7 @@ async fn main() -> std::io::Result<()> {
     // --- Run Migrations ---
     log::info!("Running database migrations...");
     // Point to the migrations directory relative to Cargo.toml
-    sqlx::migrate!("../database/migrations") // Adjust path if needed
+    sqlx::migrate!("migrations") 
         .run(&pool)
         .await
         .expect("Failed to run database migrations");
