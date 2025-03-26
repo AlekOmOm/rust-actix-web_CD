@@ -57,7 +57,7 @@ async fn main() -> std::io::Result<()> {
     // --- Run Migrations ---
     log::info!("Running database migrations...");
     // Point to the migrations directory relative to Cargo.toml
-/
+
     log::info!("Database migrations applied successfully.");
     // --- End Database Setup ---
 
