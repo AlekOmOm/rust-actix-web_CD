@@ -95,7 +95,6 @@ jobs:
         id: image_tags
         run: |
           TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-
           IMAGE_BASE_LOWER=$(echo "${{ env.IMAGE_BASENAME }}" | tr '[:upper:]' '[:lower:]')
           echo "backend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
           echo "frontend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
@@ -107,43 +106,70 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Create remote directory for deployment
-        run: ssh -p ${{secrets.SERVER_PORT}} -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p ./deployments/rust-actix-web_cd/"
-
-      - name: Transfer files to server
+      - name: Prepare Remote Directory and Transfer Files
         run: |
-          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:./deployments/rust-actix-web_cd/
-          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key ./frontend/nginx.conf ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/rust-actix-web_cd/nginx.conf
-          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key .deployment/scripts/deploy.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:./deployments/rust-actix-web_cd/
+          # Define the deployment directory ON THE SERVER (relative to user's home)
+          DEPLOY_DIR="~/deployments/rust-actix-web_cd" # Use ~ for home directory
 
-      - name: SSH into server
+          echo "Creating directory ${DEPLOY_DIR} on server..."
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p ${DEPLOY_DIR}"
+
+          echo "Transferring files..."
+          # Copy docker-compose.yml
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${DEPLOY_DIR}/docker-compose.yml
+          # Copy nginx.conf TO THE SAME DIRECTORY AS docker-compose.yml
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key ./frontend/nginx.conf ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${DEPLOY_DIR}/nginx.conf
+          # Copy deploy script
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key ./deployment/scripts/deploy.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${DEPLOY_DIR}/deploy.sh
+
+          echo "Making deploy script executable..."
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "chmod +x ${DEPLOY_DIR}/deploy.sh"
+
+      - name: Execute Deployment on Server
+        env:
+          GHCR_PAT_OR_TOKEN: ${{ secrets.GHCR_PAT_OR_TOKEN }}
+
+          PROD_COMPOSE_PROJECT_NAME: "rust-actix-web_cd" # Example: Use a specific prod name
+          PROD_RUST_LOG: "warn"
+          PROD_HOST_PORT_FRONTEND: "90" # Typically 80 or 443 (via proxy)
+          PROD_FRONTEND_INTERNAL_PORT: "8090" # Update if your nginx container listens on 80
+          PROD_BACKEND_INTERNAL_PORT: "8091" # Match your backend app's listen port
+          PROD_DATABASE_URL: "sqlite:/app/data/whoknows.db" # Or from secrets: ${{ secrets.SERVER_DATABASE_URL }}
         run: |
-          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}
-          cd ./deployments/rust-actix-web_cd
+          DEPLOY_DIR="~/deployments/rust-actix-web_cd" # Consistent path
 
-          # Set non-sensitive environment variables for deployment
+          echo "Connecting to server to perform deployment..."
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+            echo "Changing to deployment directory: ${DEPLOY_DIR}"
+            cd ${DEPLOY_DIR} || exit 1 # Exit if cd fails
 
-          echo "IMAGE_BASENAME=${{ env.IMAGE_BASENAME }}" >> $GITHUB_ENV
-          echo "GHCR_REGISTRY=${{ env.GHCR_REGISTRY }}" >> $GITHUB_ENV
-          echo "GHCR_USER=${{ github.actor }}" >> $GITHUB_ENV
-
-          # Set environment variables for docker-compose from workflow outputs
-          export IMAGE_TAG_BACKEND="${{ steps.image_tags.outputs.backend_image }}"
+            # --- Set environment variables ON THE SERVER ---
+            # These will be used by docker-compose when it runs
+            echo "Exporting environment variables for docker-compose..."
+            export IMAGE_TAG_BACKEND="${{ steps.image_tags.outputs.backend_image }}"
             export IMAGE_TAG_FRONTEND="${{ steps.image_tags.outputs.frontend_image }}"
-            export GHCR_REGISTRY="${{ env.GHCR_REGISTRY }}" # Pass registry if needed in compose file
-            export GHCR_USER="${{ github.actor }}" # Pass user if needed
-            
-            # .env non-sensitive variables 
-            export COMPOSE_PROJECT_NAME="${{ env.IMAGE_BASENAME }}"
-            export RUST_LOG="info"
-            export HOST_PORT_FRONTEND="8090"
-            export FRONTEND_INTERNAL_PORT="90"
-            export BACKEND_INTERNAL_PORT="8091"
 
-          # Deploy via SSH
+            # Use the production values defined in the 'env:' block above
+            export COMPOSE_PROJECT_NAME="${PROD_COMPOSE_PROJECT_NAME}"
+            export RUST_LOG="${PROD_RUST_LOG}"
+            export HOST_PORT_FRONTEND="${PROD_HOST_PORT_FRONTEND}"
+            export FRONTEND_INTERNAL_PORT="${PROD_FRONTEND_INTERNAL_PORT}"
+            export BACKEND_INTERNAL_PORT="${PROD_BACKEND_INTERNAL_PORT}"
+            export DATABASE_URL="${PROD_DATABASE_URL}"
 
-          echo "$GHCR_PAT_OR_TOKEN" | docker login $GHCR_REGISTRY -u $GITHUB_ACTOR --password-stdin
+            # --- Login, Deploy, Logout ---
+            echo "Logging into GHCR..."
+            # Use the secret passed via the runner's env block
+            echo "${GHCR_PAT_OR_TOKEN}" | docker login ${{ env.GHCR_REGISTRY }} -u ${{ github.actor }} --password-stdin
 
-          ./deploy.sh
+            echo "Running deployment script (./deploy.sh)..."
+            # Execute the script. It inherits the exported variables.
+            ./deploy.sh
 
-          docker logout $GHCR_REGISTRY
+            echo "Logging out from GHCR..."
+            docker logout ${{ env.GHCR_REGISTRY }}
+
+            echo "Deployment commands finished."
+          EOF
+
+          echo "SSH deployment execution complete."
