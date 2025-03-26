@@ -1,38 +1,28 @@
-# docker-compose.yml
+# docker-compose.yml (SERVER deployment)
 services:
   backend:
     container_name: ${COMPOSE_PROJECT_NAME:-mywebapp}_backend
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: ${COMPOSE_PROJECT_NAME:-mywebapp}/backend:${TAG:-latest}
+    image: ${IMAGE_TAG_BACKEND}
     restart: unless-stopped
     environment:
       RUST_LOG: ${RUST_LOG:-info}
       DATABASE_URL: sqlite:/app/data/whoknows.db
-      APP_PORT: ${BACKEND_INTERNAL_PORT:-8090}
-
+      APP_PORT: ${BACKEND_INTERNAL_PORT:-8080}
     volumes:
       - db_data:/app/data
-      - ./database/migrations:/app/migrations
-
     expose:
-      - "${BACKEND_INTERNAL_PORT:-8090}"
+      - "${BACKEND_INTERNAL_PORT:-8080}"
     networks:
       - app-network
 
   frontend:
     container_name: ${COMPOSE_PROJECT_NAME:-mywebapp}_frontend
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-
-    image: ${COMPOSE_PROJECT_NAME:-mywebapp}/frontend:${TAG:-latest}
+    image: ${IMAGE_TAG_FRONTEND}
     restart: always
     ports:
-      - "${HOST_PORT_FRONTEND:-8091}:${FRONTEND_INTERNAL_PORT:-91}"
+      - "${HOST_PORT_FRONTEND:-8081}:${FRONTEND_INTERNAL_PORT:-91}"
     volumes:
-      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - app-network
     depends_on:
@@ -44,3 +34,12 @@ volumes:
 networks:
   app-network:
     driver: bridge
+# environment variables used in this docker-compose.yml file from .env file
+#   IMAGE_TAG_BACKEND
+#   IMAGE_TAG_FRONTEND
+#   COMPOSE_PROJECT_NAME
+#   RUST_LOG
+#   HOST_PORT_FRONTEND
+#   FRONTEND_INTERNAL_PORT
+#   BACKEND_INTERNAL_PORT
+
