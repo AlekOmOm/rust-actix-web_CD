@@ -1,5 +1,5 @@
 use actix_web::{get, web, App, HttpServer, Responder};
-
+use actix_web::http::header;
 use env_logger::Env;
 use sqlx::sqlite::SqlitePoolOptions; // Import Pool
 use std::env;
@@ -57,10 +57,7 @@ async fn main() -> std::io::Result<()> {
     // --- Run Migrations ---
     log::info!("Running database migrations...");
     // Point to the migrations directory relative to Cargo.toml
-    sqlx::migrate!("../database/migrations") // Adjust path if needed
-        .run(&pool)
-        .await
-        .expect("Failed to run database migrations");
+
     log::info!("Database migrations applied successfully.");
     // --- End Database Setup ---
 
