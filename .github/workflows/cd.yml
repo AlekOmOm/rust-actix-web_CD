@@ -105,19 +105,19 @@ jobs:
 
       - name: Add SSH key
         run: |
-          mkdir -p ~/.ssh/
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/keys/projects/rust-actix-web_cd
-          chmod 600 ~/.ssh/keys/projects/rust-actix-web_cd
+          mkdir -p ~/.ssh/keys
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/keys/
+          chmod 600 ~/.ssh/keys
           ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Transfer files to server
         run: |
-          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/projects/rust-actix-web_cd docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/rust-actix-web_cd/
-          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/projects/rust-actix-web_cd .env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/rust-actix-web_cd/
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/ docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/rust-actix-web_cd/
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/ .env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/rust-actix-web_cd/
 
       - name: Deploy via SSH
         run: |
-          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/projects/rust-actix-web_cd ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
             cd /opt/rust-actix-web_cd
             
             # Set environment variables for docker-compose
