@@ -48,8 +48,7 @@ async fn main() -> std::io::Result<()> {
     // Create connection pool
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
-        // `connect` will create the DB file if it doesn't exist
-        .connect(&database_url)
+        .connect(&database_url) // creates if not exists
         .await
         .expect("Failed to create SQLite connection pool.");
     log::info!("Database connection pool created.");
