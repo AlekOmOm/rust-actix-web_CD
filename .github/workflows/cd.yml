@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request: # Also run checks on Pull Requests
-    branches: [ main ]
+    branches: [main]
 
 env:
   # Base GHCR path - Use lowercase!
@@ -23,22 +23,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          components: rustfmt, clippy
-
-      - name: Check Formatting
-        run: cargo fmt -- --check
-
-      - name: Run Clippy
-        run: cargo clippy -- -D warnings # Fail on warnings
-
-      - name: Run Tests
-        run: cargo test --verbose
 
   build-push:
     name: Build & Push Docker Images

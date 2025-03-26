@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 
 # Copy the compiled application binary from the builder stage
-COPY --from=builder /app/target/release/whoknows_rust_actix_backend . # <-- CORRECTED BIN NAME
+COPY --from=builder /app/target/release/whoknows_rust_actix_backend .
 
 # Copy migrations from builder stage IF your app runs them on startup
 COPY --from=builder /app/migrations ./migrations
