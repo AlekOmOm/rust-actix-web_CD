@@ -33,8 +33,9 @@ async fn main() -> std::io::Result<()> {
     log::info!("Starting backend server...");
     log::info!("Internal Port: {}", port);
     log::info!("Database URL: {}", database_url);
+
     if database_url.starts_with("sqlite:") {
-        // Use Path methods for safer path handling
+        
         let db_path_str = database_url.trim_start_matches("sqlite:");
         let db_path = Path::new(db_path_str);
 
@@ -49,12 +50,12 @@ async fn main() -> std::io::Result<()> {
     }
 
        // Create connection pool
-       let pool = SqlitePoolOptions::new()
-            .max_connections(5)
-            .connect(&database_url) // creates the file if not exists (requires directory to exist!)
-            .await
-            .expect("Failed to create SQLite connection pool."); // Will panic if dir doesn't exist or permissions fail
-        log::info!("Database connection pool created.");
+    //    let pool = SqlitePoolOptions::new()
+    //         .max_connections(5)
+    //         .connect(&database_url) // creates the file if not exists (requires directory to exist!)
+    //         .await
+    //         .expect("Failed to create SQLite connection pool."); // Will panic if dir doesn't exist or permissions fail
+    //     log::info!("Database connection pool created.");
 
     HttpServer::new(move || {
         App::new()
