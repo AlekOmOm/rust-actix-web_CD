@@ -91,47 +91,56 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Lowercase Image Base Name
-        id: lowercaser
-        run: echo "image_base=$(echo ${{ env.IMAGE_BASENAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
-      - name: Define Image Tags
+      - name: Define Image Tags for Deployment
         id: image_tags
         run: |
           TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "tag_sha=${TAG_SHA}" >> $GITHUB_OUTPUT
-          echo "backend_image=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
-          echo "frontend_image=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
 
-      - name: Add SSH key
+          IMAGE_BASE_LOWER=$(echo "${{ env.IMAGE_BASENAME }}" | tr '[:upper:]' '[:lower:]')
+          echo "backend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
+          echo "frontend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Set up SSH
         run: |
-          mkdir -p ~/.ssh/keys
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/keys/
-          chmod 600 ~/.ssh/keys
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create remote directory for deployment
+        run: ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p ./deployments/rust-actix-web_cd/"
 
       - name: Transfer files to server
         run: |
-          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/ docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/rust-actix-web_cd/
-          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/ .env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/rust-actix-web_cd/
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:./deployments/rust-actix-web_cd/
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key .env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:./deployments/rust-actix-web_cd/
 
       - name: Deploy via SSH
         run: |
-          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
-            cd /opt/rust-actix-web_cd
-            
-            # Set environment variables for docker-compose
+          # Use the specific key file with -i for the ssh command too
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+            cd ./deployments/rust-actix-web_cd
+
+            # Set environment variables for docker-compose from workflow outputs
             export IMAGE_TAG_BACKEND="${{ steps.image_tags.outputs.backend_image }}"
             export IMAGE_TAG_FRONTEND="${{ steps.image_tags.outputs.frontend_image }}"
-            
-            # Login to GitHub Container Registry
+            export GHCR_REGISTRY="${{ env.GHCR_REGISTRY }}" # Pass registry if needed in compose file
+            export GHCR_USER="${{ github.actor }}" # Pass user if needed
+
+            # Login to GitHub Container Registry on the server
             echo "${{ secrets.GHCR_PAT_OR_TOKEN }}" | docker login ${{ env.GHCR_REGISTRY }} -u ${{ github.actor }} --password-stdin
-            
-            # Pull and start containers
+
+            # Pull the specific tagged images defined by the env vars
+            # (Your docker-compose.yml should use these variables, e.g., image: \${IMAGE_TAG_BACKEND})
             docker-compose pull
+
+            # Stop (if running), remove old containers, and start new ones based on the pulled images
+            # --remove-orphans removes containers for services no longer defined in compose file
             docker-compose up -d --remove-orphans
-            
-            # Cleanup
+
+            # Cleanup unused images (dangling and unreferenced)
             docker image prune -af
+
+            # Logout from the registry
             docker logout ${{ env.GHCR_REGISTRY }}
           EOF
