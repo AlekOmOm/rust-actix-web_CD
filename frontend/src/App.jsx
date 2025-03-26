@@ -5,8 +5,8 @@ function App() {
   const [backendMessage, setBackendMessage] = useState("Loading...");
 
   useEffect(() => {
-    // Fetch root message
-    fetch("/")
+    // Fetch from backend API path
+    fetch("/api/")
       .then((response) => {
         if (!response.ok)
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -14,7 +14,7 @@ function App() {
       })
       .then((data) => setBackendMessage(data))
       .catch((error) => {
-        console.error("Error fetching root:", error);
+        console.error("Error fetching from API:", error);
         setBackendMessage(`Error loading data: ${error.message}`);
       });
   }, []);
