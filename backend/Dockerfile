@@ -1,6 +1,6 @@
 # ---- Stage 1: Builder ----
 # Use a slightly newer Rust version if possible, but 1.70 is okay
-FROM rust:1.70 as builder
+FROM rust:1.77 as builder
 
 # Install build dependencies & cargo-chef
 RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev pkg-config \
