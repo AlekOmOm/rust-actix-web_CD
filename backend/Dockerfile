@@ -52,4 +52,4 @@ EXPOSE 8090
 # Rely on docker-compose 'environment' section for DATABASE_URL
 
 # Start the application
-CMD ["./whoknows_rust_actix_backend"] # <-- CORRECTED BIN NAME
+CMD ["./whoknows_rust_actix_backend"]

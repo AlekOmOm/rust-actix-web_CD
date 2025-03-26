@@ -7,9 +7,7 @@ on:
     branches: [main]
 
 env:
-  # Base GHCR path - Use lowercase!
   GHCR_REGISTRY: ghcr.io
-  # Derive image base name from repo name (lowercase)
   IMAGE_BASENAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
 
 jobs:
@@ -26,7 +24,7 @@ jobs:
 
   build-push:
     name: Build & Push Docker Images
-
+    needs: lint-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -55,10 +53,9 @@ jobs:
         id: image_tags
         run: |
           TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "backend_image=${{ steps.lowercaser.outputs.image_base }}/backend" >> $GITHUB_OUTPUT
-          echo "frontend_image=${{ steps.lowercaser.outputs.image_base }}/frontend" >> $GITHUB_OUTPUT
-          echo "tag_latest=latest" >> $GITHUB_OUTPUT
           echo "tag_sha=${TAG_SHA}" >> $GITHUB_OUTPUT
+          echo "backend_image_tag=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
+          echo "frontend_image_tag=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
 
       - name: Build and Push Backend Image
         uses: docker/build-push-action@v5
@@ -86,86 +83,57 @@ jobs:
 
   deploy:
     name: Deploy to Server
-    needs: build-push # Run only after build-push succeeds
+    needs: build-push
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository # Needed for docker-compose.yml
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Lowercase Image Base Name # Repeat for deploy job or pass via outputs
+      - name: Lowercase Image Base Name
         id: lowercaser
         run: echo "image_base=$(echo ${{ env.IMAGE_BASENAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-      - name: Define Image Tags # Repeat for deploy job or pass via outputs
+      - name: Define Image Tags
         id: image_tags
         run: |
           TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "backend_image_tag=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/backend:${{ steps.image_tags.outputs.tag_sha }}" >> $GITHUB_OUTPUT
-          echo "frontend_image_tag=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/frontend:${{ steps.image_tags.outputs.tag_sha }}" >> $GITHUB_OUTPUT
-          # Or use ':latest' if preferred for deployment simplicity
-          # echo "backend_image_tag=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/backend:latest" >> $GITHUB_OUTPUT
-          # echo "frontend_image_tag=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/frontend:latest" >> $GITHUB_OUTPUT
+          echo "tag_sha=${TAG_SHA}" >> $GITHUB_OUTPUT
+          echo "backend_image=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
+          echo "frontend_image=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Create .env file
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+
+      - name: Add SSH key
+        run: |
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Transfer files to server
+        run: |
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/id_rsa docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/my-web-app/
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/id_rsa .env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/my-web-app/
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          script: |
-            # Variables
-            export DEPLOY_DIR="/opt/my-web-app" # CHANGE THIS PATH if needed
-            export COMPOSE_FILE="${{ github.workspace }}/docker-compose.yml" # Path in runner
-            export ENV_FILE_CONTENT="${{ secrets.ENV_FILE }}" # Content from secret
-            # Use specific commit SHA tags for deployment
-            export IMAGE_TAG_BACKEND="${{ steps.image_tags.outputs.backend_image_tag }}"
-            export IMAGE_TAG_FRONTEND="${{ steps.image_tags.outputs.frontend_image_tag }}"
-            export GHCR_PAT="${{ secrets.GHCR_PAT_OR_TOKEN }}"
-            export GHCR_USER="${{ github.actor }}"
-            export GHCR_REGISTRY="${{ env.GHCR_REGISTRY }}"
-
-            echo "--- Starting Deployment ---"
-            echo "Deploy Directory: $DEPLOY_DIR"
-            echo "Backend Image: $IMAGE_TAG_BACKEND"
-            echo "Frontend Image: $IMAGE_TAG_FRONTEND"
-
-            # Create deployment directory
-            mkdir -p $DEPLOY_DIR
-            cd $DEPLOY_DIR
-
-            # Create the .env file from GitHub Secret
-            echo "Creating .env file..."
-            echo "$ENV_FILE_CONTENT" > .env
-            # Ensure correct permissions if needed
-            # chmod 600 .env
-
-            # Copy docker-compose.yml from checkout
-            echo "Copying docker-compose.yml..."
-            cp $COMPOSE_FILE .
-
-            # Login to GHCR
-            echo "Logging into $GHCR_REGISTRY..."
-            echo "$GHCR_PAT" | docker login $GHCR_REGISTRY -u $GHCR_USER --password-stdin
-
-            # Pull the specific new images defined by tags
-            # docker-compose pull will use IMAGE_TAG_* vars defined in the environment
-            # which override the image definitions in docker-compose.yml
-            echo "Pulling latest images..."
+        run: |
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+            cd /opt/my-web-app
+            
+            # Set environment variables for docker-compose
+            export IMAGE_TAG_BACKEND="${{ steps.image_tags.outputs.backend_image }}"
+            export IMAGE_TAG_FRONTEND="${{ steps.image_tags.outputs.frontend_image }}"
+            
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GHCR_PAT_OR_TOKEN }}" | docker login ${{ env.GHCR_REGISTRY }} -u ${{ github.actor }} --password-stdin
+            
+            # Pull and start containers
             docker-compose pull
-
-            # Stop and remove old containers, networks, and volumes defined in compose
-            # Then start new containers with the new images and config
-            echo "Restarting services with docker-compose up..."
-            docker-compose up -d --remove-orphans # Use --remove-orphans to clean up old services if compose file changed
-
-            # Clean up unused Docker images (optional)
-            echo "Pruning unused Docker images..."
+            docker-compose up -d --remove-orphans
+            
+            # Cleanup
             docker image prune -af
-
-            # Logout from GHCR
-            echo "Logging out from $GHCR_REGISTRY..."
-            docker logout $GHCR_REGISTRY
-
-            echo "--- Deployment Successful ---"
+            docker logout ${{ env.GHCR_REGISTRY }}
+          EOF

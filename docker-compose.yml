@@ -10,6 +10,7 @@ services:
     environment:
       RUST_LOG: ${RUST_LOG:-info}
       DATABASE_URL: sqlite:/app/data/whoknows.db
+      APP_PORT: ${BACKEND_INTERNAL_PORT:-8090}
 
     volumes:
       - db_data:/app/data
