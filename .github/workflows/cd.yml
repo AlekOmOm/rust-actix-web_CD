@@ -103,9 +103,6 @@ jobs:
           echo "backend_image=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
           echo "frontend_image=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
 
-      - name: Create .env file
-        run: echo "${{ secrets.ENV_FILE }}" > .env
-
       - name: Add SSH key
         run: |
           mkdir -p ~/.ssh/
