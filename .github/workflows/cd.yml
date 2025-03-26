@@ -108,7 +108,7 @@ jobs:
           ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create remote directory for deployment
-        run: ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p ./deployments/rust-actix-web_cd/"
+        run: ssh -p ${{secrets.SERVER_PORT}} -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p ./deployments/rust-actix-web_cd/"
 
       - name: Transfer files to server
         run: |
