@@ -6,7 +6,7 @@ function App() {
 
   useEffect(() => {
     // Fetch root message
-    fetch("/api/")
+    fetch("/")
       .then((response) => {
         if (!response.ok)
           throw new Error(`HTTP error! status: ${response.status}`);
