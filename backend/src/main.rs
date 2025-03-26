@@ -3,6 +3,7 @@ use actix_web::http::header;
 use env_logger::Env;
 use sqlx::sqlite::SqlitePoolOptions; // Import Pool
 use std::env;
+use std::path::Path;
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -32,33 +33,28 @@ async fn main() -> std::io::Result<()> {
     log::info!("Starting backend server...");
     log::info!("Internal Port: {}", port);
     log::info!("Database URL: {}", database_url);
-
-    // --- Database Connection & Migration ---
-    // Ensure the directory exists before connecting (important for volume mounts)
     if database_url.starts_with("sqlite:") {
+        // Use Path methods for safer path handling
         let db_path_str = database_url.trim_start_matches("sqlite:");
-        if let Some(parent_dir) = std::path::Path::new(db_path_str).parent() {
+        let db_path = Path::new(db_path_str);
+
+        if let Some(parent_dir) = db_path.parent() {
             if !parent_dir.exists() {
                 log::info!("Creating database directory: {:?}", parent_dir);
-                std::fs::create_dir_all(parent_dir)?;
+                // Use std::fs::create_dir_all which is idempotent (doesn't error if dir exists)
+                std::fs::create_dir_all(parent_dir)?; // The '?' propagates potential I/O errors
+                log::info!("Database directory created (or already exists).");
             }
         }
     }
 
-    // Create connection pool
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url) // creates if not exists
-        .await
-        .expect("Failed to create SQLite connection pool.");
-    log::info!("Database connection pool created.");
-
-    // --- Run Migrations ---
-    log::info!("Running database migrations...");
-    // Point to the migrations directory relative to Cargo.toml
-
-    log::info!("Database migrations applied successfully.");
-    // --- End Database Setup ---
+       // Create connection pool
+       let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url) // creates the file if not exists (requires directory to exist!)
+            .await
+            .expect("Failed to create SQLite connection pool."); // Will panic if dir doesn't exist or permissions fail
+        log::info!("Database connection pool created.");
 
     HttpServer::new(move || {
         App::new()

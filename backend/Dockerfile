@@ -36,8 +36,6 @@
     COPY --from=builder /app/target/release/whoknows_rust_actix_backend .
     
     RUN chmod +x ./whoknows_rust_actix_backend
-
-    EXPOSE 8090
     
     # Start the application
     CMD ["./whoknows_rust_actix_backend"]
