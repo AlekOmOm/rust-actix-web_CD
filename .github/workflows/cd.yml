@@ -54,8 +54,9 @@ jobs:
         run: |
           TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           echo "tag_sha=${TAG_SHA}" >> $GITHUB_OUTPUT
-          echo "backend_image_tag=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
-          echo "frontend_image_tag=${{ env.GHCR_REGISTRY }}/${{ steps.lowercaser.outputs.image_base }}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
+          echo "tag_latest=latest" >> $GITHUB_OUTPUT
+          echo "backend_image=${{ steps.lowercaser.outputs.image_base }}/backend" >> $GITHUB_OUTPUT
+          echo "frontend_image=${{ steps.lowercaser.outputs.image_base }}/frontend" >> $GITHUB_OUTPUT
 
       - name: Build and Push Backend Image
         uses: docker/build-push-action@v5
@@ -108,19 +109,19 @@ jobs:
       - name: Add SSH key
         run: |
           mkdir -p ~/.ssh/
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/keys/projects/rust-actix-web_cd
+          chmod 600 ~/.ssh/keys/projects/rust-actix-web_cd
           ssh-keyscan -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Transfer files to server
         run: |
-          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/id_rsa docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/my-web-app/
-          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/id_rsa .env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/my-web-app/
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/projects/rust-actix-web_cd docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/rust-actix-web_cd/
+          scp -P ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/projects/rust-actix-web_cd .env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/rust-actix-web_cd/
 
       - name: Deploy via SSH
         run: |
-          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
-            cd /opt/my-web-app
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/keys/projects/rust-actix-web_cd ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+            cd /opt/rust-actix-web_cd
             
             # Set environment variables for docker-compose
             export IMAGE_TAG_BACKEND="${{ steps.image_tags.outputs.backend_image }}"
