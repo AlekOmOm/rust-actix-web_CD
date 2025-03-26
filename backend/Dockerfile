@@ -22,9 +22,9 @@ RUN cargo chef cook --release --recipe-path recipe.json
 # --- Build Application ---
 COPY src ./src
 # Copy migrations folder for runtime use (if using sqlx::migrate!)
-COPY migrations ./migrations
+#COPY migrations ./migrations
 # Ensure the binary name matches your Cargo.toml package name EXACTLY
-RUN cargo build --release --bin whoknows_rust_actix_backend # <-- CORRECTED BIN NAME
+RUN cargo build --release --bin whoknows_rust_actix_backend
 
 # ---- Stage 2: Runtime ----
 FROM debian:bullseye-slim

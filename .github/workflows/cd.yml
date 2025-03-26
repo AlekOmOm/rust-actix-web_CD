@@ -26,13 +26,12 @@ jobs:
 
   build-push:
     name: Build & Push Docker Images
-    needs: lint-test # Run only if lint & test passes
+
     runs-on: ubuntu-latest
-    # Only run on push to main, not on PRs for the push part
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
-      packages: write # To push to GHCR
+      packages: write
 
     steps:
       - name: Checkout Repository
