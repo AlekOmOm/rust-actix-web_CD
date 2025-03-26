@@ -1,0 +1,41 @@
+.
+├── .env                      # Root .env for docker-compose (ignored)
+├── .env.template             # Template for root .env
+├── .gitignore                # Root gitignore
+├── README.md                 # Project overview
+├── docker-compose.yml        # Main docker-compose for all services
+│
+├── backend/                  # Actix Web application
+│   ├── src/
+│   │   └── main.rs           # Backend source code
+│   ├── tests/                # Backend tests (unit, integration)
+│   ├── Cargo.toml
+│   ├── Cargo.lock            # Optional, but recommended
+│   └── Dockerfile            # Backend Dockerfile
+│   # .env.template removed, use root .env
+│
+├── database/                 # Database related files
+│   ├── migrations/           # SQLx migrations directory
+│   │   └── 0001_initial_schema.sql # Your schema goes here
+│   └── data/                 # Directory mounted as volume for the DB file
+│       └── .gitkeep          # Keep the directory in git, actual DB file ignored
+│
+├── deployment/               # CI/CD, infrastructure, scripts
+│   ├── github/
+│   │   └── workflows/
+│   │       └── cd.yml        # GitHub Actions workflow
+│   └── scripts/
+│       ├── setup_gh_secrets.sh # Script to set GitHub secrets
+│       └── setup_ssh_access.sh # Script to set up server SSH access
+│
+├── frontend/                 # React frontend application
+│   ├── public/               # Static assets served directly (index.html template, favicon)
+│   ├── src/                  # React source code (App.js, index.js, components)
+│   ├── package.json
+│   ├── package-lock.json     # Or yarn.lock
+│   ├── Dockerfile            # Frontend Dockerfile (Node build + Nginx serve)
+│   └── nginx.conf            # Custom Nginx config for SPA & proxy
+│
+└── postman/                  # Optional: Postman collections/environments
+    ├── MyProject.postman_collection.json
+    └── MyProject_Prod.postman_environment.json
