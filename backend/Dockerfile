@@ -4,7 +4,7 @@ FROM rust:1.77 as builder
 
 # Install build dependencies & cargo-chef
 RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev pkg-config \
-    && cargo install cargo-chef \
+    && cargo install cargo-chef --locked \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
