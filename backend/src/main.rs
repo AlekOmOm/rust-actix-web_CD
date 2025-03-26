@@ -1,7 +1,8 @@
 use actix_web::{get, web, App, HttpServer, Responder};
-use std::env;
+
 use env_logger::Env;
-use sqlx::sqlite::{SqlitePoolOptions}; // Import Pool
+use sqlx::sqlite::SqlitePoolOptions; // Import Pool
+use std::env;
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -15,7 +16,6 @@ async fn config() -> impl Responder {
     format!("DB URL: {}, Internal Port: {}", db_url, port)
 }
 
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or("info"));
@@ -24,9 +24,10 @@ async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let port_str = env::var("APP_PORT")
-        .unwrap_or_else(|_| "8080".to_string());
-    let port = port_str.parse::<u16>().expect("APP_PORT must be a valid port number");
+    let port_str = env::var("APP_PORT").unwrap_or_else(|_| "8080".to_string());
+    let port = port_str
+        .parse::<u16>()
+        .expect("APP_PORT must be a valid port number");
 
     log::info!("Starting backend server...");
     log::info!("Internal Port: {}", port);
@@ -63,13 +64,11 @@ async fn main() -> std::io::Result<()> {
     log::info!("Database migrations applied successfully.");
     // --- End Database Setup ---
 
-
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pool.clone())) // Share pool with handlers
             .service(hello)
             .service(config)
-            
     })
     .bind(("0.0.0.0", port))?
     .run()
