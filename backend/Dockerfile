@@ -37,5 +37,7 @@
     
     RUN chmod +x ./whoknows_rust_actix_backend
     
+    EXPOSE ${BACKEND_INTERNAL_PORT:-8080}
+    
     # Start the application
     CMD ["./whoknows_rust_actix_backend"]

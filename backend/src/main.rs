@@ -27,7 +27,7 @@ async fn hello() -> impl Responder {
 #[get("/config")]
 async fn config() -> impl Responder {
     let db_url = env::var("DATABASE_URL").unwrap_or_else(|_| "Not Set".to_string());
-    let port = env::var("BACKEND_PORT").unwrap_or_else(|_| "Not Set".to_string());
+    let port = env::var("BACKEND_INTERNAL_PORT").unwrap_or_else(|_| "Not Set".to_string());
     let environment = env::var("RUST_LOG").unwrap_or_else(|_| "Not Set".to_string());
     let build_version = env::var("BUILD_VERSION").unwrap_or_else(|_| "dev".to_string());
     
@@ -59,10 +59,10 @@ async fn health() -> impl Responder {
 async fn main() -> std::io::Result<()> {
     env_logger::init();
 
-    let port_str = env::var("BACKEND_PORT").unwrap_or_else(|_| "8080".to_string());
+    let port_str = env::var("BACKEND_INTERNAL_PORT").unwrap_or_else(|_| "8080".to_string());
     let port = port_str
         .parse::<u16>()
-        .expect("APP_PORT must be a valid port number");
+        .expect("BACKEND_INTERNAL_PORT must be a valid port number");
 
     HttpServer::new(move || {
         App::new()
