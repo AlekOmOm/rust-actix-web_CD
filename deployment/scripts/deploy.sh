@@ -9,6 +9,9 @@
 # 5. Cleanup unused images (dangling and unreferenced) after successful deployment
 
 
+# ------------------------------ #
+# Main script logic
+
 set -e  # Exit immediately if a command exits with non-zero status
 
 # Log deployment start with timestamp
@@ -28,7 +31,11 @@ docker-compose pull || { echo "Failed to pull images"; exit 1; }
 
 # Stop (if running), remove old containers, and start new ones
 echo "[$(date)] Starting containers"
-docker-compose up -d --remove-orphans
+
+docker-compose -f docker-compose.yml up -d --remove-orphans \
+  --env-file .env \
+  -e IMAGE_TAG_BACKEND="${IMAGE_TAG_BACKEND}" \
+  -e IMAGE_TAG_FRONTEND="${IMAGE_TAG_FRONTEND}"
 
 # Wait for backend to become healthy
 echo "[$(date)] Waiting for backend health check..."

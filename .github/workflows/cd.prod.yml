@@ -144,16 +144,11 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
             cd ${{ env.DEPLOY_DIR }}
-
-            # --- Set environment variables ON THE SERVER ---
-            export IMAGE_TAG_BACKEND="${{ steps.image_tags.outputs.backend_image }}"
-            export IMAGE_TAG_FRONTEND="${{ steps.image_tags.outputs.frontend_image }}"
-            export GHCR_PAT_OR_TOKEN="${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}"
-            export BACKEND_INTERNAL_PORT="${{ secrets.PROD_BACKEND_INTERNAL_PORT }}"
-            export FRONTEND_INTERNAL_PORT="${{ secrets.PROD_FRONTEND_INTERNAL_PORT }}"
+            mv ${{ env.ENV_FILE }} .env
+            mv ${{ env.DOCKER_COMPOSE_FILE }} docker-compose.yml
+            mv ${{ env.NGINX_FILE_PATH }} nginx.conf
 
             # --- Login, Deploy, Logout ---
-            echo "Logging into GHCR..."
             echo "${GHCR_PAT_OR_TOKEN}" | docker login ${{ env.GHCR_REGISTRY }} -u ${{ github.actor }} --password-stdin
 
             echo "Running deployment script (deploy.sh)..."
