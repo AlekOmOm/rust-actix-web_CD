@@ -113,7 +113,7 @@ jobs:
       - name: Add SSH key to runner
         run: |
           mkdir -p ~/.ssh/
-          echo "$SSH_PRIVATE_KEY" > "${{ env.SSH_KEY_PATH }}"
+          echo "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ${{ env.SSH_KEY_PATH }}          
           chmod 600 "${{ env.SSH_KEY_PATH }}"
           ssh-keyscan -H ${{ secrets.PROD_SERVER_HOST }} >> ~/.ssh/known_hosts
         env:
