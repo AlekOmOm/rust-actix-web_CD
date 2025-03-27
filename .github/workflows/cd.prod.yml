@@ -1,3 +1,4 @@
+# cd.prod.yml
 name: CI/CD Pipeline
 
 on:
@@ -6,10 +7,12 @@ on:
   pull_request:
     branches: [main] # on PR
 
-# env var for workflow
 env:
   GHCR_REGISTRY: ghcr.io
   IMAGE_BASENAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
+  SSH_KEY_PATH: ~/.ssh/ssh_key
+  SSH_CMD: ssh -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}
+  SCP_CMD: scp -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no
   DEPLOY_DIR: ~/deployments/rust-actix-web_cd
   ENV_FILE: .env.production
   FRONTEND_PATH: ./frontend
@@ -107,22 +110,26 @@ jobs:
           echo "backend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
           echo "frontend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
 
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+      - name: Add SSH key to runner
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_PRIVATE_KEY" > "${{ env.SSH_KEY_PATH }}"
+          chmod 600 "${{ env.SSH_KEY_PATH }}"
+          ssh-keyscan -H ${{ secrets.PROD_SERVER_HOST }} >> ~/.ssh/known_hosts
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
 
-      - name: Create .env.production file
+      - name: Create .env file
         run: |
           echo "${{ secrets.PROD_ENV_FILE }}" > ${{ env.ENV_FILE }}
 
       - name: Transfer files to server
         run: |
           # mkdir
-          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}" 
+          ${{ env.SSH_CMD }} "mkdir -p ${{ env.DEPLOY_DIR }}" 
 
           # scp
-          scp -o StrictHostKeyChecking=no \
+          ${{ env.SCP_CMD }} \
             ${{ env.DOCKER_COMPOSE_FILE }} \
             ${{ env.ENV_FILE }} \
             ${{ env.NGINX_FILE_PATH }} \
@@ -133,16 +140,8 @@ jobs:
         env:
           GHCR_PAT_OR_TOKEN: ${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}
 
-          # deploys by:
-          ## 1. cd to DEPLOY_DIR
-          ## 2. set env var
-          ## 3.
-          ### login to GHCR
-          ### deploy using deploy.sh
-          ### logout
-
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+          ${{ env.SSH_CMD }} << 'EOF'
             cd ${{ env.DEPLOY_DIR }}
             mv ${{ env.ENV_FILE }} .env
             mv ${{ env.DOCKER_COMPOSE_FILE }} docker-compose.yml
@@ -152,6 +151,7 @@ jobs:
             echo "${GHCR_PAT_OR_TOKEN}" | docker login ${{ env.GHCR_REGISTRY }} -u ${{ github.actor }} --password-stdin
 
             echo "Running deployment script (deploy.sh)..."
+            chmod +x ./deploy.sh
             ./deploy.sh
 
             echo "Logging out from GHCR..."
