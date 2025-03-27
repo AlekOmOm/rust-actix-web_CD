@@ -10,7 +10,7 @@ DEFAULT_SSH_PORT="22" # Default SSH port
 echo "--- Server SSH Access Setup ---"
 
 # 1. Get Server Info
-read -p "Enter your Google Cloud VM's Public IP address: " SERVER_IP
+read -p "Enter your VM's Public IP address: " SERVER_IP
 read -p "Enter the SSH port for the VM [${DEFAULT_SSH_PORT}]: " SSH_PORT # <-- ASK FOR PORT
 SSH_PORT=${SSH_PORT:-$DEFAULT_SSH_PORT} # Use default if empty
 read -p "Enter your *EXISTING* admin/sudo username on the VM (e.g., your google username): " ADMIN_USER
@@ -34,7 +34,7 @@ fi
 
 echo "---------------------------------"
 echo "Configuration Summary:"
-echo "Server IP:        $SERVER_IP"
+echo "Server Host IP:   $SERVER_IP"
 echo "SSH Port:         $SSH_PORT" # <-- Show port
 echo "Admin User:       $ADMIN_USER"
 echo "Deployment User:  $DEPLOY_USER"

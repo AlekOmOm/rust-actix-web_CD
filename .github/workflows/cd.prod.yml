@@ -1,0 +1,165 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main] # on Push
+  pull_request:
+    branches: [main] # on PR
+
+# env var for workflow
+env:
+  GHCR_REGISTRY: ghcr.io
+  IMAGE_BASENAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
+  DEPLOY_DIR: ~/deployments/rust-actix-web_cd
+  ENV_FILE: .env.production
+  FRONTEND_PATH: ./frontend
+  NGINX_FILE_PATH: ./frontend/nginx.prod.conf
+  BACKEND_PATH: ./backend
+  DOCKER_COMPOSE_FILE: ./docker-compose.prod.yml
+  DEPLOY_SCRIPT: ./deployment/scripts/deploy.sh
+
+jobs:
+  # job for linting and testing (not implemented yet)
+  lint-test:
+    name: Lint & Test Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+  build-push:
+    name: Build & Push Docker Images
+    needs: lint-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}
+
+      - name: Lowercase Image Base Name
+        id: lowercaser
+        run: echo "image_base=$(echo ${{ env.IMAGE_BASENAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Define Image Tags
+        id: image_tags
+        run: |
+          TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "tag_sha=${TAG_SHA}" >> $GITHUB_OUTPUT
+          echo "tag_latest=latest" >> $GITHUB_OUTPUT
+          echo "backend_image=${{ steps.lowercaser.outputs.image_base }}/backend" >> $GITHUB_OUTPUT
+          echo "frontend_image=${{ steps.lowercaser.outputs.image_base }}/frontend" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.BACKEND_PATH }}
+          file: ${{ env.BACKEND_PATH }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.GHCR_REGISTRY }}/${{ steps.image_tags.outputs.backend_image }}:${{ steps.image_tags.outputs.tag_latest }}
+            ${{ env.GHCR_REGISTRY }}/${{ steps.image_tags.outputs.backend_image }}:${{ steps.image_tags.outputs.tag_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.FRONTEND_PATH }}
+          file: ${{ env.FRONTEND_PATH }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.GHCR_REGISTRY }}/${{ steps.image_tags.outputs.frontend_image }}:${{ steps.image_tags.outputs.tag_latest }}
+            ${{ env.GHCR_REGISTRY }}/${{ steps.image_tags.outputs.frontend_image }}:${{ steps.image_tags.outputs.tag_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Server
+    needs: build-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Define Image Tags for Deployment
+        id: image_tags
+        run: |
+          TAG_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          IMAGE_BASE_LOWER=$(echo "${{ env.IMAGE_BASENAME }}" | tr '[:upper:]' '[:lower:]')
+          echo "backend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
+          echo "frontend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+
+      - name: Create .env.production file
+        run: |
+          echo "${{ secrets.PROD_ENV_FILE }}" > ${{ env.ENV_FILE }}
+
+      - name: Transfer files to server
+        run: |
+          # mkdir
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}" 
+
+          # scp
+          scp -o StrictHostKeyChecking=no \
+            ${{ env.DOCKER_COMPOSE_FILE }} \
+            ${{ env.ENV_FILE }} \
+            ${{ env.NGINX_FILE_PATH }} \
+            ${{ env.DEPLOY_SCRIPT }} \
+            ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}:${{ env.DEPLOY_DIR }}
+
+      - name: Execute Deployment on Server
+        env:
+          GHCR_PAT_OR_TOKEN: ${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}
+
+          # deploys by:
+          ## 1. cd to DEPLOY_DIR
+          ## 2. set env var
+          ## 3.
+          ### login to GHCR
+          ### deploy using deploy.sh
+          ### logout
+
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+            cd ${{ env.DEPLOY_DIR }}
+
+            # --- Set environment variables ON THE SERVER ---
+            export IMAGE_TAG_BACKEND="${{ steps.image_tags.outputs.backend_image }}"
+            export IMAGE_TAG_FRONTEND="${{ steps.image_tags.outputs.frontend_image }}"
+            export GHCR_PAT_OR_TOKEN="${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}"
+            export BACKEND_INTERNAL_PORT="${{ secrets.PROD_BACKEND_INTERNAL_PORT }}"
+            export FRONTEND_INTERNAL_PORT="${{ secrets.PROD_FRONTEND_INTERNAL_PORT }}"
+
+            # --- Login, Deploy, Logout ---
+            echo "Logging into GHCR..."
+            echo "${GHCR_PAT_OR_TOKEN}" | docker login ${{ env.GHCR_REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+            echo "Running deployment script (deploy.sh)..."
+            ./deploy.sh
+
+            echo "Logging out from GHCR..."
+            docker logout ${{ env.GHCR_REGISTRY }}
+            
+          EOF

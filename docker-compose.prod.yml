@@ -1,13 +1,17 @@
-# docker-compose.yml (SERVER deployment)
+# docker-compose.prod.yml (SERVER deployment)
 services:
   backend:
     container_name: ${COMPOSE_PROJECT_NAME:-mywebapp}_backend
     image: ${IMAGE_TAG_BACKEND}
     restart: unless-stopped
-    environment:
+    environment: # loaded from .env file, passed to backend container. Useable in backend dockerfile: ENV RUST_LOG=${RUST_LOG:-info}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-mywebapp}
+      CONTAINER_NAME: ${COMPOSE_PROJECT_NAME:-mywebapp}_backend
+      # Backend Config
+      BACKEND_PORT: ${BACKEND_INTERNAL_PORT:-8080}
       RUST_LOG: ${RUST_LOG:-info}
-      DATABASE_URL: sqlite:/app/data/whoknows.db
-      APP_PORT: ${BACKEND_INTERNAL_PORT:-8080}
+      DATABASE_URL: ${DATABASE_URL:-/app/data/mywebapp.db}
+
     volumes:
       - db_data:/app/data
     expose:
@@ -34,12 +38,3 @@ volumes:
 networks:
   app-network:
     driver: bridge
-# environment variables used in this docker-compose.yml file from .env file
-#   IMAGE_TAG_BACKEND
-#   IMAGE_TAG_FRONTEND
-#   COMPOSE_PROJECT_NAME
-#   RUST_LOG
-#   HOST_PORT_FRONTEND
-#   FRONTEND_INTERNAL_PORT
-#   BACKEND_INTERNAL_PORT
-

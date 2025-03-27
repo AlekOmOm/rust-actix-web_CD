@@ -1,0 +1,149 @@
+name: Development Deployment
+
+on:
+  push:
+    branches: ["development"]
+  pull_request:
+    branches: ["development"]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
+  DEPLOY_PATH: ~/deployments/rust-actix-web_dev
+  ENVIRONMENT: development
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    # Skip on PRs to avoid duplicate builds
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT_OR_TOKEN }}
+
+      - name: Generate image tags
+        id: tags
+        run: |
+          # Generate a version tag using branch, timestamp and short SHA
+          VERSION="dev-$(date +%Y%m%d)-$(echo ${{ github.sha }} | cut -c1-7)"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "BACKEND_TAG=${{ env.BACKEND_IMAGE }}:$VERSION" >> $GITHUB_OUTPUT
+          echo "FRONTEND_TAG=${{ env.FRONTEND_IMAGE }}:$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:dev
+            ${{ steps.tags.outputs.BACKEND_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.tags.outputs.VERSION }}
+            ENVIRONMENT=${{ env.ENVIRONMENT }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:dev
+            ${{ steps.tags.outputs.FRONTEND_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.tags.outputs.VERSION }}
+            ENVIRONMENT=${{ env.ENVIRONMENT }}
+
+  deploy-dev:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    concurrency:
+      group: development_environment
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.DEV_SSH_PRIVATE_KEY }}
+
+      - name: Create .env file from secret
+        run: |
+          echo "${{ secrets.DEV_ENV_FILE }}" > .env
+
+      - name: Create deployment directory on server
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEV_SERVER_USER }}@${{ secrets.DEV_SERVER_HOST }} "mkdir -p ${{ env.DEPLOY_PATH }}"
+
+      - name: Transfer files to server
+        run: |
+          scp -o StrictHostKeyChecking=no \
+            docker-compose.dev.yml \
+            .env \
+            nginx.conf \
+            ./deployment/scripts/deploy.sh \
+            ${{ secrets.DEV_SERVER_USER }}@${{ secrets.DEV_SERVER_HOST }}:${{ env.DEPLOY_PATH }}/
+
+      - name: Deploy to development server
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEV_SERVER_USER }}@${{ secrets.DEV_SERVER_HOST }} << EOF
+            cd ${{ env.DEPLOY_PATH }}
+            chmod +x deploy.sh
+            
+            # Set environment variables for deployment
+            export IMAGE_TAG_BACKEND="${{ env.BACKEND_IMAGE }}:dev"
+            export IMAGE_TAG_FRONTEND="${{ env.FRONTEND_IMAGE }}:dev"
+            export COMPOSE_FILE="docker-compose.dev.yml"
+            
+            # Login to GitHub Container Registry on server
+            echo "${{ secrets.GHCR_PAT_OR_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+            
+            # Run the deployment script
+            ./deploy.sh
+            
+            # Logout from registry
+            docker logout ${{ env.REGISTRY }}
+          EOF
+
+      - name: Verify deployment
+        run: |
+          sleep 5
+
+          MAX_ATTEMPTS=5
+          ATTEMPT=1
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Verification attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            if ssh -o StrictHostKeyChecking=no ${{ secrets.DEV_SERVER_USER }}@${{ secrets.DEV_SERVER_HOST }} "curl -s -f http://localhost:${{ secrets.DEV_PORT }}/ > /dev/null"; then
+              echo "✅ Development deployment verified successfully!"
+              exit 0
+            fi
+            
+            ATTEMPT=$((ATTEMPT+1))
+            [ $ATTEMPT -le $MAX_ATTEMPTS ] && sleep 3
+          done
+
+          echo "❌ Failed to verify development deployment after $MAX_ATTEMPTS attempts"
+          exit 1

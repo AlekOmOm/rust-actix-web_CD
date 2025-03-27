@@ -1,3 +1,4 @@
+# backend/Dockerfile for Rust Actix Web Backend
 # ---- Stage 1: Builder ----
     FROM rust:1.81 as builder
 
@@ -14,9 +15,8 @@
         && echo 'fn main() {println!("Building dependencies...")}' > src/main.rs \
         && cargo build --release \
         && rm -rf src \
-        && rm -f target/release/deps/whoknows_rust_actix_backend*
+        && rm -f target/release/deps/${{ env.CONTAINER_NAME }}*
 
-    
     # Copy the actual source code
     COPY src ./src
     
