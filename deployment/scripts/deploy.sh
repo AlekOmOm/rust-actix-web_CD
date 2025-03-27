@@ -13,7 +13,8 @@ if [ -f .env.previous ]; then
 fi
 
 # Save current environment variables for potential rollbacks
-env | grep "IMAGE_TAG_" > .env.previous || true
+
+set | grep "^IMAGE_TAG_" > .env.previous || true
 
 # ---------------- pull images ---------------- ##
 
