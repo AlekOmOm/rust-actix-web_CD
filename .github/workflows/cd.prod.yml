@@ -14,9 +14,8 @@ env:
   SERVER_USER: ${{ secrets.PROD_SERVER_USER }}
   SERVER_HOST: ${{ secrets.PROD_SERVER_HOST }}
   SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
-  SSH_KEY_PATH: ~/.ssh/ssh_key
-  SSH_CMD: ssh -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}
-  SCP_CMD: scp -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no
+  SSH_CMD: ssh -i -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}
+  SCP_CMD: scp -i -o StrictHostKeyChecking=no
   DEPLOY_DIR: ~/deployments/rust-actix-web_cd
   ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
   ENV_FILE: .env.production
@@ -115,16 +114,13 @@ jobs:
           echo "backend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
           echo "frontend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
 
-      - name: Add SSH key to runner
-        run: |
-          mkdir -p ~/.ssh/
+      - name: Install SSH Key
+        uses: webfactory/ssh-agent@v0.5.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
 
-          echo "${{ env.SSH_PRIVATE_KEY}}" > ${{ env.SSH_KEY_PATH }}
-          cat ${{ env.SSH_KEY_PATH }}
-
-          chmod 600 ${{ env.SSH_KEY_PATH }}
-
-          ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Add host to known_hosts
+        run: ssh-keyscan -H ${{ secrets.PROD_SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create .env file
         run: |
