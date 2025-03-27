@@ -10,21 +10,24 @@ on:
 env:
   GHCR_REGISTRY: ghcr.io
   IMAGE_BASENAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
+  # Secrets:
   GHCR_PAT_OR_TOKEN: ${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}
   SERVER_USER: ${{ secrets.PROD_SERVER_USER }}
   SERVER_HOST: ${{ secrets.PROD_SERVER_HOST }}
   SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+  ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
+  # Commands:
   SSH_CMD: ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}
   SCP_CMD: scp -o StrictHostKeyChecking=no
-  # deploy.sh path: ./deployment/scripts/deploy.sh
-  DEPLOY_DIR: ./deployment/rust-actix-web_cd
-  ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
+  # paths:
   ENV_FILE: .env.production
+  DEPLOY_DIR: ./deployment/rust-actix-web_cd
   FRONTEND_PATH: ./frontend
   NGINX_FILE_PATH: ./frontend/nginx.conf
   BACKEND_PATH: ./backend
   DOCKER_COMPOSE_FILE: ./docker-compose.prod.yml
   DEPLOY_SCRIPT: ./deployment/scripts/deploy.sh
+  DOCKER_LOGIN_SCRIPT: ./deployment/scripts/docker-login.sh
 
 jobs:
   # job for linting and testing (not implemented yet)
@@ -140,6 +143,7 @@ jobs:
             ${{ env.ENV_FILE }} \
             ${{ env.NGINX_FILE_PATH }} \
             ${{ env.DEPLOY_SCRIPT }} \
+            ${{ env.DOCKER_LOGIN_SCRIPT }} \
             ${SERVER_DEST}
 
       - name: Execute Deployment on Server
@@ -148,22 +152,25 @@ jobs:
           ENV_FILE="${{ env.ENV_FILE }}"
           DOCKER_COMPOSE_FILE="${{ env.DOCKER_COMPOSE_FILE }}"
           NGINX_FILE_PATH="${{ env.NGINX_FILE_PATH }}"
+          DEPLOY_SCRIPT="${{ env.DEPLOY_SCRIPT }}"
+          DOCKER_LOGIN_SCRIPT="${{ env.DOCKER_LOGIN_SCRIPT }}"
           GHCR_PAT_OR_TOKEN="${{ env.GHCR_PAT_OR_TOKEN }}"
           GHCR_REGISTRY="${{ env.GHCR_REGISTRY }}"
           GITHUB_ACTOR="${{ github.actor }}"
 
           ${{ env.SSH_CMD }} << EOF
-            cd ${DEPLOY_DIR}
+            cd ~/${DEPLOY_DIR}
             mv ${ENV_FILE} .env
             mv ${DOCKER_COMPOSE_FILE} docker-compose.yml
             mv ${NGINX_FILE_PATH} nginx.conf
 
             # --- Login, Deploy, Logout ---
-            echo "${GHCR_PAT_OR_TOKEN}" | docker login ${GHCR_REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
-
+            chmod +x ${DOCKER_LOGIN_SCRIPT}
+            ./${DOCKER_LOGIN_SCRIPT} ${GHCR_PAT_OR_TOKEN} ${GHCR_REGISTRY} ${GITHUB_ACTOR}
+            
             echo "Running deployment script (deploy.sh)..."
-            chmod +x ./deploy.sh
-            ./deploy.sh
+            chmod +x ${DEPLOY_SCRIPT}
+            ./${DEPLOY_SCRIPT}
 
             echo "Logging out from GHCR..."
             docker logout ${GHCR_REGISTRY}
