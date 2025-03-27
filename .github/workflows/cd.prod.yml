@@ -145,6 +145,14 @@ jobs:
             ${{ env.DEPLOY_SCRIPT }} \
             ${{ env.DOCKER_LOGIN_SCRIPT }} \
             ${SERVER_DEST}
+           
+          # ~/deployment/rust-actix-web_cd/
+              # ├── .env.production
+              # ├── docker-compose.prod.yml
+              # ├── nginx.conf
+              # ├── deploy.sh
+              # └── docker-login.sh
+        # ------------------------------------------
 
       - name: Execute Deployment on Server
         run: |
@@ -165,12 +173,12 @@ jobs:
             mv ${NGINX_FILE_PATH} nginx.conf
 
             # --- Login, Deploy, Logout ---
-            chmod +x ${DOCKER_LOGIN_SCRIPT}
-            ./${DOCKER_LOGIN_SCRIPT} ${GHCR_PAT_OR_TOKEN} ${GHCR_REGISTRY} ${GITHUB_ACTOR}
+            chmod +x ./docker-login.sh
+            ./docker-login.sh "${GHCR_PAT_OR_TOKEN}" "${GHCR_REGISTRY}" "${GITHUB_ACTOR}"
             
             echo "Running deployment script (deploy.sh)..."
-            chmod +x ${DEPLOY_SCRIPT}
-            ./${DEPLOY_SCRIPT}
+            chmod +x ./deploy.sh
+            ./deploy.sh
 
             echo "Logging out from GHCR..."
             docker logout ${GHCR_REGISTRY}
