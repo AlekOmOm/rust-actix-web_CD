@@ -10,10 +10,15 @@ on:
 env:
   GHCR_REGISTRY: ghcr.io
   IMAGE_BASENAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
+  GHCR_PAT_OR_TOKEN: ${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}
+  SERVER_USER: ${{ secrets.PROD_SERVER_USER }}
+  SERVER_HOST: ${{ secrets.PROD_SERVER_HOST }}
+  SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
   SSH_KEY_PATH: ~/.ssh/ssh_key
   SSH_CMD: ssh -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}
   SCP_CMD: scp -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no
   DEPLOY_DIR: ~/deployments/rust-actix-web_cd
+  ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
   ENV_FILE: .env.production
   FRONTEND_PATH: ./frontend
   NGINX_FILE_PATH: ./frontend/nginx.prod.conf
@@ -54,7 +59,7 @@ jobs:
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}
+          password: ${{ env.GHCR_PAT_OR_TOKEN }}
 
       - name: Lowercase Image Base Name
         id: lowercaser
@@ -113,18 +118,18 @@ jobs:
       - name: Add SSH key to runner
         run: |
           mkdir -p ~/.ssh/
-          echo "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ${{ env.SSH_KEY_PATH }}          
-          chmod 600 "${{ env.SSH_KEY_PATH }}"
-          ssh-keyscan -H ${{ secrets.PROD_SERVER_HOST }} >> ~/.ssh/known_hosts
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          echo "${{ env.SSH_PRIVATE_KEY}}" > ${{ env.SSH_KEY_PATH }}
+          chmod 600 ${{ env.SSH_KEY_PATH }}
+          ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create .env file
         run: |
-          echo "${{ secrets.PROD_ENV_FILE }}" > ${{ env.ENV_FILE }}
+          echo "${{ env.ENV_FILE_CONTENT }}" > ${{ env.ENV_FILE }}
 
       - name: Transfer files to server
         run: |
+          SERVER_DEST="${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_DIR }}"
+
           # mkdir
           ${{ env.SSH_CMD }} "mkdir -p ${{ env.DEPLOY_DIR }}" 
 
@@ -134,27 +139,31 @@ jobs:
             ${{ env.ENV_FILE }} \
             ${{ env.NGINX_FILE_PATH }} \
             ${{ env.DEPLOY_SCRIPT }} \
-            ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}:${{ env.DEPLOY_DIR }}
+            ${SERVER_DEST}
 
       - name: Execute Deployment on Server
-        env:
-          GHCR_PAT_OR_TOKEN: ${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}
-
         run: |
-          ${{ env.SSH_CMD }} << 'EOF'
-            cd ${{ env.DEPLOY_DIR }}
-            mv ${{ env.ENV_FILE }} .env
-            mv ${{ env.DOCKER_COMPOSE_FILE }} docker-compose.yml
-            mv ${{ env.NGINX_FILE_PATH }} nginx.conf
+          DEPLOY_DIR="${{ env.DEPLOY_DIR }}"
+          ENV_FILE="${{ env.ENV_FILE }}"
+          DOCKER_COMPOSE_FILE="${{ env.DOCKER_COMPOSE_FILE }}"
+          NGINX_FILE_PATH="${{ env.NGINX_FILE_PATH }}"
+          GHCR_PAT_OR_TOKEN="${{ env.GHCR_PAT_OR_TOKEN }}"
+          GHCR_REGISTRY="${{ env.GHCR_REGISTRY }}"
+          GITHUB_ACTOR="${{ github.actor }}"
+
+          ${{ env.SSH_CMD }} << EOF
+            cd ${DEPLOY_DIR}
+            mv ${ENV_FILE} .env
+            mv ${DOCKER_COMPOSE_FILE} docker-compose.yml
+            mv ${NGINX_FILE_PATH} nginx.conf
 
             # --- Login, Deploy, Logout ---
-            echo "${GHCR_PAT_OR_TOKEN}" | docker login ${{ env.GHCR_REGISTRY }} -u ${{ github.actor }} --password-stdin
+            echo "${GHCR_PAT_OR_TOKEN}" | docker login ${GHCR_REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
 
             echo "Running deployment script (deploy.sh)..."
             chmod +x ./deploy.sh
             ./deploy.sh
 
             echo "Logging out from GHCR..."
-            docker logout ${{ env.GHCR_REGISTRY }}
-            
+            docker logout ${GHCR_REGISTRY}
           EOF
