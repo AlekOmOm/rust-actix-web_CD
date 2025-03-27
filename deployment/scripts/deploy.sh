@@ -1,18 +1,8 @@
 #!/bin/bash
 # Path: deployment/scripts/deploy.sh
-# This script automates the deployment process for a Dockerized web application.
-# steps: 
-# 1. Pull the specific tagged images defined by the env vars
-# 2. Stop (if running), remove old containers, and start new ones
-# 3. Wait for backend to become healthy
-# 4. Log version information for auditing
-# 5. Cleanup unused images (dangling and unreferenced) after successful deployment
-
-
-# ------------------------------ #
-# Main script logic
 
 set -e  # Exit immediately if a command exits with non-zero status
+source .env  # Load environment variables from .env file
 
 # Log deployment start with timestamp
 echo "[$(date)] Deployment started"
@@ -31,11 +21,7 @@ docker-compose pull || { echo "Failed to pull images"; exit 1; }
 
 # Stop (if running), remove old containers, and start new ones
 echo "[$(date)] Starting containers"
-
-docker-compose -f docker-compose.yml up -d --remove-orphans \
-  --env-file .env \
-  -e IMAGE_TAG_BACKEND="${IMAGE_TAG_BACKEND}" \
-  -e IMAGE_TAG_FRONTEND="${IMAGE_TAG_FRONTEND}"
+docker-compose -f docker-compose.yml up -d --remove-orphans --env-file .env
 
 # Wait for backend to become healthy
 echo "[$(date)] Waiting for backend health check..."
@@ -74,9 +60,8 @@ echo "[$(date)] Deployment successful with:"
 echo "Backend: $IMAGE_TAG_BACKEND"
 echo "Frontend: $IMAGE_TAG_FRONTEND"
 
-# Cleanup unused images (dangling and unreferenced) after successful deployment
+# Cleanup unused images (dangling only - safer approach)
 echo "[$(date)] Cleaning up unused Docker resources"
-docker image prune -af
-docker system prune -f --volumes
+docker image prune -af  # Remove only dangling images, not volumes
 
 echo "[$(date)] Deployment completed successfully"
