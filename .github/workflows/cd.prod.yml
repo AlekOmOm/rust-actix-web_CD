@@ -14,11 +14,13 @@ env:
   GHCR_PAT_OR_TOKEN: ${{ secrets.PROD_GHCR_PAT_OR_TOKEN }}
   SERVER_USER: ${{ secrets.PROD_SERVER_USER }}
   SERVER_HOST: ${{ secrets.PROD_SERVER_HOST }}
+  SERVER_PORT: ${{ secrets.PROD_SERVER_PORT }}
+  # SSH:
   SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
   ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
   # Commands:
-  SSH_CMD: ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}
-  SCP_CMD: scp -o StrictHostKeyChecking=no
+  SSH_CMD: ssh -p ${{ secrets.PROD_SERVER_PORT }} -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}
+  SCP_CMD: scp -P ${{ secrets.PROD_SERVER_PORT }} -o StrictHostKeyChecking=no
   # paths:
   ENV_FILE: .env.production
   DEPLOY_DIR: ./deployment/rust-actix-web_cd
@@ -117,7 +119,7 @@ jobs:
           ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - name: Add host to known_hosts
-        run: mkdir -p ~/.ssh && ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+        run: mkdir -p ~/.ssh && ssh-keyscan -p ${{ env.SERVER_PORT }} -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create .env file
         run: |
