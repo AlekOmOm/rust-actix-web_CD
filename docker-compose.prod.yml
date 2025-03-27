@@ -1,15 +1,14 @@
 # docker-compose.prod.yml (SERVER deployment)
 services:
-  env_file:
-    - .env
   backend:
     container_name: ${COMPOSE_PROJECT_NAME:-mywebapp}_backend
     image: ${IMAGE_TAG_BACKEND}
     restart: unless-stopped
     environment: # loaded from .env file, passed to backend container. Useable in backend dockerfile: ENV RUST_LOG=${RUST_LOG:-info}
+      # env var for Backend container fx. main.rs
       COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-mywebapp}
       CONTAINER_NAME: ${COMPOSE_PROJECT_NAME:-mywebapp}_backend
-      # Backend Config
+
       BACKEND_PORT: ${BACKEND_INTERNAL_PORT:-8080}
       RUST_LOG: ${RUST_LOG:-info}
       DATABASE_URL: ${DATABASE_URL:-/app/data/mywebapp.db}

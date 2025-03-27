@@ -121,10 +121,10 @@ jobs:
       - name: Install SSH Key
         uses: webfactory/ssh-agent@v0.5.0
         with:
-          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ env.SSH_PRIVATE_KEY }}
 
       - name: Add host to known_hosts
-        run: ssh-keyscan -H ${{ secrets.PROD_SERVER_HOST }} >> ~/.ssh/known_hosts
+        run: mkdir -p ~/.ssh && ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create .env file
         run: |
@@ -145,13 +145,7 @@ jobs:
             ${{ env.DEPLOY_SCRIPT }} \
             ${{ env.DOCKER_LOGIN_SCRIPT }} \
             ${SERVER_DEST}
-           
-          # ~/deployment/rust-actix-web_cd/
-              # ├── .env.production
-              # ├── docker-compose.prod.yml
-              # ├── nginx.conf
-              # ├── deploy.sh
-              # └── docker-login.sh
+
         # ------------------------------------------
 
       - name: Execute Deployment on Server
@@ -171,6 +165,15 @@ jobs:
             mv ${ENV_FILE} .env
             mv ${DOCKER_COMPOSE_FILE} docker-compose.yml
             mv ${NGINX_FILE_PATH} nginx.conf
+
+                # ------------------------------       
+                # ----- files in server --------
+                # ~/deployment/rust-actix-web_cd/
+                  # ├── .env
+                  # ├── docker-compose.yml
+                  # ├── nginx.conf
+                  # ├── deploy.sh
+                  # └── docker-login.sh
 
             # --- Login, Deploy, Logout ---
             chmod +x ./docker-login.sh
