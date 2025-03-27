@@ -2,7 +2,6 @@
 # Path: deployment/scripts/deploy.sh
 
 set -e  # Exit immediately if a command exits with non-zero status
-ls -la 
 source .env  # Load environment variables from .env file
 
 # Log deployment start with timestamp
@@ -24,7 +23,7 @@ docker compose pull || { echo "Failed to pull images"; exit 1; }
 
 # Stop (if running), remove old containers, and start new ones
 echo "[$(date)] Starting containers"
-docker compose -f docker-compose.yml up -d --remove-orphans --env-file .env
+docker compose -f docker-compose.yml --env-file .env up -d --remove-orphans
 
 # ------------- health check ------------- ##
 
@@ -59,7 +58,7 @@ for i in $(seq 1 $MAX_RETRIES); do
       set -a  
       source .env.rollback
       set +a
-      docker compose up -d --remove-orphans --env-file .env.rollback || { echo "Rollback failed"; exit 1; }
+      docker compose --env-file .env.rollback up -d --remove-orphans || { echo "Rollback failed"; exit 1; }
       
       # Wait for the rollback to become healthy
       echo "[$(date)] Waiting for rollback health check..."
