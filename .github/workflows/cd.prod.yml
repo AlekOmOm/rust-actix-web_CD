@@ -14,9 +14,9 @@ env:
   SERVER_USER: ${{ secrets.PROD_SERVER_USER }}
   SERVER_HOST: ${{ secrets.PROD_SERVER_HOST }}
   SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
-  SSH_KEY_PATH: $HOME/.ssh/ssh_key
-  SSH_CMD: ssh -i $HOME/.ssh/ssh_key -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}
-  SCP_CMD: scp -i $HOME/.ssh/ssh_key -o StrictHostKeyChecking=no
+  SSH_KEY_PATH: ~/.ssh/ssh_key
+  SSH_CMD: ssh -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}
+  SCP_CMD: scp -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no
   DEPLOY_DIR: ~/deployments/rust-actix-web_cd
   ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
   ENV_FILE: .env.production
@@ -118,8 +118,12 @@ jobs:
       - name: Add SSH key to runner
         run: |
           mkdir -p ~/.ssh/
+
           echo "${{ env.SSH_PRIVATE_KEY}}" > ${{ env.SSH_KEY_PATH }}
+          cat ${{ env.SSH_KEY_PATH }}
+
           chmod 600 ${{ env.SSH_KEY_PATH }}
+
           ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create .env file
