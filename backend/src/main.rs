@@ -1,7 +1,7 @@
 use actix_web::{get, web, App, HttpServer, Responder};
-use actix_web::http::header;
+//use actix_web::http::header;
 use env_logger::Env;
-use sqlx::sqlite::SqlitePoolOptions; // Import Pool
+//use sqlx::sqlite::SqlitePoolOptions; // Import Pool
 use std::env;
 use std::path::Path;
 
@@ -59,7 +59,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(pool.clone())) // Share pool with handlers
+            //.app_data(web::Data::new(pool.clone())) // Share pool with handlers
             .service(hello)
             .service(config)
     })
