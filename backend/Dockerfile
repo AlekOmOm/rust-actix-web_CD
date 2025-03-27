@@ -1,6 +1,6 @@
 # backend/Dockerfile for Rust Actix Web Backend
 # ---- Stage 1: Builder ----
-    FROM rust:1.81 as builder
+    FROM rust:1.81 AS builder
 
     # Install build dependencies
     RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev pkg-config \
@@ -15,7 +15,7 @@
         && echo 'fn main() {println!("Building dependencies...")}' > src/main.rs \
         && cargo build --release \
         && rm -rf src \
-        && rm -f target/release/deps/${{ env.CONTAINER_NAME }}*
+        && rm -f target/release/deps/$CONTAINER_NAME*
 
     # Copy the actual source code
     COPY src ./src
