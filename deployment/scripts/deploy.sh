@@ -34,6 +34,17 @@ MAX_RETRIES=30
 RETRY_INTERVAL=2
 HEALTH_ENDPOINT="http://localhost:${HOST_PORT_FRONTEND}/api/health" 
 
+cleanupRollback() {
+  # Rename rollback file
+  mv .env.rollback .env.previous 2>/dev/null || echo "No rollback file to rename"
+  
+  # Remove files, don't error if they don't exist
+  rm -f .env.previous 2>/dev/null
+  rm -f .env 2>/dev/null
+  
+  echo "[$(date)] Cleanup completed"
+}
+
 for i in $(seq 1 $MAX_RETRIES); do
   if curl -s -f "${HEALTH_ENDPOINT}" > /dev/null; then
     echo "[$(date)] Backend is healthy!"
@@ -56,16 +67,7 @@ for i in $(seq 1 $MAX_RETRIES); do
       for j in $(seq 1 $MAX_RETRIES); do
         if curl -s -f "${HEALTH_ENDPOINT}" > /dev/null; then
           echo "[$(date)] Rollback successful!"
-          cleanup() {
-            # Remove the rollback file after successful rollback
-                # .env.rollback -> .env.previous
-                mv .env.rollback .env.previous || { echo "Failed to rename rollback file"; exit 1; }
-                # Remove the previous deployment file
-                rm -f .env.previous || { echo "Failed to remove previous deployment file"; exit 1; }
-                # Remove the current deployment file
-                rm -f .env || { echo "Failed to remove current deployment file"; exit 1; }
-            echo "[$(date)] Cleaned up rollback file"
-          }
+          cleanupRollback
           break
         fi
         
@@ -77,10 +79,6 @@ for i in $(seq 1 $MAX_RETRIES); do
         echo "[$(date)] Rollback attempt $j/$MAX_RETRIES: Backend not ready yet. Retrying in ${RETRY_INTERVAL}s..."
         sleep $RETRY_INTERVAL
       done
-
-
-
-      
       echo "[$(date)] Rollback complete"
     else
       echo "[$(date)] No previous deployment found for rollback"
@@ -91,6 +89,8 @@ for i in $(seq 1 $MAX_RETRIES); do
   echo "Attempt $i/$MAX_RETRIES: Backend not ready yet. Retrying in ${RETRY_INTERVAL}s..."
   sleep $RETRY_INTERVAL
 done
+
+# --------------- logging --------------- ##
 
 # Log version information for auditing
 echo "[$(date)] Deployment successful with:"
