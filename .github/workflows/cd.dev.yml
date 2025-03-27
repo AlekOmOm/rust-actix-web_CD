@@ -1,21 +1,29 @@
+# cd.dev.yml
 name: CI/CD Pipeline
 
 on:
   push:
-    branches: [development] # on Push
+    branches: [dev] # on Push
   pull_request:
-    branches: [development] # on PR
+    branches: [dev] # on PR
 
-# env var for workflow
 env:
   GHCR_REGISTRY: ghcr.io
   IMAGE_BASENAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
+  GHCR_PAT_OR_TOKEN: ${{ secrets.DEV_GHCR_PAT_OR_TOKEN }}
+  SERVER_USER: ${{ secrets.DEV_SERVER_USER }}
+  SERVER_HOST: ${{ secrets.DEV_SERVER_HOST }}
+  SSH_PRIVATE_KEY: ${{ secrets.DEV_SSH_PRIVATE_KEY }}
+  SSH_KEY_PATH: ~/.ssh/ssh_key
+  SSH_CMD: ssh -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no ${{ secrets.DEV_SERVER_USER }}@${{ secrets.DEV_SERVER_HOST }}
+  SCP_CMD: scp -i ~/.ssh/ssh_key -o StrictHostKeyChecking=no
   DEPLOY_DIR: ~/deployments/rust-actix-web_cd
-  ENV_FILE: .env.production
+  ENV_FILE_CONTENT: ${{ secrets.DEV_ENV_FILE }}
+  ENV_FILE: .env.development
   FRONTEND_PATH: ./frontend
-  NGINX_FILE_PATH: ./frontend/nginx.prod.conf
+  NGINX_FILE_PATH: ./frontend/nginx.conf
   BACKEND_PATH: ./backend
-  DOCKER_COMPOSE_FILE: ./docker-compose.prod.yml
+  DOCKER_COMPOSE_FILE: ./docker-compose.dev.yml
   DEPLOY_SCRIPT: ./deployment/scripts/deploy.sh
 
 jobs:
@@ -51,7 +59,7 @@ jobs:
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.DEV_GHCR_PAT_OR_TOKEN }}
+          password: ${{ env.GHCR_PAT_OR_TOKEN }}
 
       - name: Lowercase Image Base Name
         id: lowercaser
@@ -107,59 +115,55 @@ jobs:
           echo "backend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/backend:${TAG_SHA}" >> $GITHUB_OUTPUT
           echo "frontend_image=${{ env.GHCR_REGISTRY }}/${IMAGE_BASE_LOWER}/frontend:${TAG_SHA}" >> $GITHUB_OUTPUT
 
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.DEV_SSH_PRIVATE_KEY }}
-
-      - name: Create .env.production file
+      - name: Add SSH key to runner
         run: |
-          echo "${{ secrets.DEV_ENV_FILE }}" > ${{ env.ENV_FILE }}
+          mkdir -p ~/.ssh/
+          echo "${{ env.SSH_PRIVATE_KEY}}" > ${{ env.SSH_KEY_PATH }}
+          chmod 600 ${{ env.SSH_KEY_PATH }}
+          ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create .env file
+        run: |
+          echo "${{ env.ENV_FILE_CONTENT }}" > ${{ env.ENV_FILE }}
 
       - name: Transfer files to server
         run: |
+          SERVER_DEST="${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_DIR }}"
+
           # mkdir
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEV_SERVER_USER }}@${{ secrets.DEV_SERVER_HOST }} "mkdir -p ${{ env.DEPLOY_DIR }}" 
+          ${{ env.SSH_CMD }} "mkdir -p ${{ env.DEPLOY_DIR }}" 
 
           # scp
-          scp -o StrictHostKeyChecking=no \
+          ${{ env.SCP_CMD }} \
             ${{ env.DOCKER_COMPOSE_FILE }} \
             ${{ env.ENV_FILE }} \
             ${{ env.NGINX_FILE_PATH }} \
             ${{ env.DEPLOY_SCRIPT }} \
-            ${{ secrets.DEV_SERVER_USER }}@${{ secrets.DEV_SERVER_HOST }}:${{ env.DEPLOY_DIR }}
+            ${SERVER_DEST}
 
       - name: Execute Deployment on Server
-        env:
-          GHCR_PAT_OR_TOKEN: ${{ secrets.DEV_GHCR_PAT_OR_TOKEN }}
-
-          # deploys by:
-          ## 1. cd to DEPLOY_DIR
-          ## 2. set env var
-          ## 3.
-          ### login to GHCR
-          ### deploy using deploy.sh
-          ### logout
-
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEV_SERVER_USER }}@${{ secrets.DEV_SERVER_HOST }} << 'EOF'
-            cd ${{ env.DEPLOY_DIR }}
+          DEPLOY_DIR="${{ env.DEPLOY_DIR }}"
+          ENV_FILE="${{ env.ENV_FILE }}"
+          DOCKER_COMPOSE_FILE="${{ env.DOCKER_COMPOSE_FILE }}"
+          NGINX_FILE_PATH="${{ env.NGINX_FILE_PATH }}"
+          GHCR_PAT_OR_TOKEN="${{ env.GHCR_PAT_OR_TOKEN }}"
+          GHCR_REGISTRY="${{ env.GHCR_REGISTRY }}"
+          GITHUB_ACTOR="${{ github.actor }}"
 
-            # --- Set environment variables ON THE SERVER ---
-            export IMAGE_TAG_BACKEND="${{ steps.image_tags.outputs.backend_image }}"
-            export IMAGE_TAG_FRONTEND="${{ steps.image_tags.outputs.frontend_image }}"
-            export GHCR_PAT_OR_TOKEN="${{ secrets.DEV_GHCR_PAT_OR_TOKEN }}"
-            export BACKEND_INTERNAL_PORT="${{ secrets.DEV_BACKEND_INTERNAL_PORT }}"
-            export FRONTEND_INTERNAL_PORT="${{ secrets.DEV_FRONTEND_INTERNAL_PORT }}"
+          ${{ env.SSH_CMD }} << EOF
+            cd ${DEPLOY_DIR}
+            mv ${ENV_FILE} .env
+            mv ${DOCKER_COMPOSE_FILE} docker-compose.yml
+            mv ${NGINX_FILE_PATH} nginx.conf
 
             # --- Login, Deploy, Logout ---
-            echo "Logging into GHCR..."
-            echo "${GHCR_PAT_OR_TOKEN}" | docker login ${{ env.GHCR_REGISTRY }} -u ${{ github.actor }} --password-stdin
+            echo "${GHCR_PAT_OR_TOKEN}" | docker login ${GHCR_REGISTRY} -u ${GITHUB_ACTOR} --password-stdin
 
             echo "Running deployment script (deploy.sh)..."
+            chmod +x ./deploy.sh
             ./deploy.sh
 
             echo "Logging out from GHCR..."
-            docker logout ${{ env.GHCR_REGISTRY }}
-            
+            docker logout ${GHCR_REGISTRY}
           EOF

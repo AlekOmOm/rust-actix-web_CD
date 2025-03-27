@@ -21,7 +21,7 @@ env:
   ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
   ENV_FILE: .env.production
   FRONTEND_PATH: ./frontend
-  NGINX_FILE_PATH: ./frontend/nginx.prod.conf
+  NGINX_FILE_PATH: ./frontend/nginx.conf
   BACKEND_PATH: ./backend
   DOCKER_COMPOSE_FILE: ./docker-compose.prod.yml
   DEPLOY_SCRIPT: ./deployment/scripts/deploy.sh
