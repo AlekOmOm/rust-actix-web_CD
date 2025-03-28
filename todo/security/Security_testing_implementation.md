@@ -2,10 +2,6 @@
 
 This document outlines the security testing strategy for your Rust/Actix + React project, including both Static Application Security Testing (SAST) and Dynamic Application Security Testing (DAST) approaches.
 
-## Tasks done:
-
-- [ ] security.yml
-
 ## Overview
 
 Our security testing approach follows these principles:
