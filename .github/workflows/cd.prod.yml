@@ -32,21 +32,8 @@ env:
   DOCKER_LOGIN_SCRIPT: ./deployment/scripts/docker-login.sh
 
 jobs:
-  # job for linting and testing (not implemented yet)
-  lint-test:
-    name: Lint & Test Backend
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
   build-push:
     name: Build & Push Docker Images
-    needs: lint-test
     runs-on: ubuntu-latest
     permissions:
       contents: read
