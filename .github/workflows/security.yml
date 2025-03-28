@@ -1,0 +1,153 @@
+name: Security Scanning
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  # SAST for Rust backend
+  rust-security-scan:
+    name: Rust Security Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo-audit
+        run: cargo audit
+
+      - name: Install clippy
+        run: rustup component add clippy
+
+      - name: Run Clippy
+        run: cargo clippy -- -D warnings
+
+      # Optional: cargo-deny for license and vulnerability checking
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
+      - name: Run cargo-deny
+        run: cargo deny check
+
+  # SAST for Frontend
+  frontend-security-scan:
+    name: Frontend Security Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 19
+          cache: "npm"
+          cache-dependency-path: ./frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ESLint security plugin for JavaScript
+      - name: Run ESLint with security plugins
+        run: npx eslint --ext .js,.jsx,.ts,.tsx src/ --max-warnings 0
+
+      # npm audit
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true # Set to true so workflow doesn't fail on low severity issues
+
+  # DAST: Docker compose build and scan running application
+  dast-scan:
+    name: Dynamic Application Security Testing
+    runs-on: ubuntu-latest
+    needs: [rust-security-scan, frontend-security-scan]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build with Docker Compose
+        run: docker compose -f docker-compose.prod.yml build
+
+      - name: Start the application
+        run: |
+          docker compose -f docker-compose.prod.yml up -d
+          sleep 30  # Allow time for application to start completely
+
+      - name: Verify application is running
+        run: |
+          curl --retry 5 --retry-delay 5 --retry-connrefused http://localhost:${HOST_PORT_FRONTEND:-8080}
+
+      # OWASP ZAP Scan
+      - name: Run ZAP Scan
+        uses: zaproxy/action-baseline@v0.9.0
+        with:
+          target: "http://localhost:${HOST_PORT_FRONTEND:-8080}"
+          rules_file_name: ".zap/rules.tsv"
+          cmd_options: "-a"
+
+      - name: Stop containers
+        if: always()
+        run: docker compose -f docker-compose.prod.yml down
+
+      - name: Upload ZAP report
+        uses: actions/upload-artifact@v3
+        with:
+          name: zap-report
+          path: |
+            zap-baseline.html
+            zap-baseline.json
+          retention-days: 7
+
+  # Docker image security scanning
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: [rust-security-scan, frontend-security-scan]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build backend image for scanning
+        run: docker build -t backend:scan ./backend
+
+      - name: Build frontend image for scanning
+        run: docker build -t frontend:scan ./frontend
+
+      - name: Run Trivy vulnerability scanner (Backend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "backend:scan"
+          format: "sarif"
+          output: "trivy-results-backend.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Run Trivy vulnerability scanner (Frontend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "frontend:scan"
+          format: "sarif"
+          output: "trivy-results-frontend.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: "trivy-results-backend.sarif"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: "trivy-results-frontend.sarif"

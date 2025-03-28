@@ -1,5 +1,3 @@
-```bash
-cargo install sqlx-cli
-
-
-```
+- [ ] Write documentation
+- [ ] Implement feature X
+- [x] Setup CI/CD pipeline
