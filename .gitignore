@@ -37,3 +37,16 @@ frontend/dist/ # Vite's default output directory
 # Log files
 *.log
 logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+.github/workflows/cd-DESKTOP-19QVLUP.yml
+backend/src/main-DESKTOP-19QVLUP.rs
+frontend/index-DESKTOP-19QVLUP.html
+frontend/vite.config-DESKTOP-19QVLUP.js
+frontend/src/App-DESKTOP-19QVLUP.jsx
+backend/Cargo-DESKTOP-19QVLUP.toml
+backend/Cargo-DESKTOP-19QVLUP.lock
+*-DESKTOP-19QVLUP*
