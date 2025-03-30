@@ -8,6 +8,9 @@ on:
     branches: [main] # on PR
 
 env:
+  # ---------------------------------------------
+  # ------------ Environment Variables ----------
+  #
   GHCR_REGISTRY: ghcr.io
   IMAGE_BASENAME: ${{ github.repository_owner }}/${{ github.event.repository.name }}
   # Secrets:
@@ -32,6 +35,10 @@ env:
   DOCKER_LOGIN_SCRIPT: ./deployment/scripts/docker-login.sh
 
 jobs:
+  #
+  # ---------------------------------------------
+  # ----------------- build-push ----------------
+  #
   build-push:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
