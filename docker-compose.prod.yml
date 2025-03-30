@@ -4,8 +4,10 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-mywebapp}_backend
     image: ${IMAGE_TAG_BACKEND}
     restart: unless-stopped
-    environment: # loaded from .env file, passed to backend container. Useable in backend dockerfile: ENV RUST_LOG=${RUST_LOG:-info}
-      # env var for Backend container fx. main.rs
+    environment: # loaded from .env file, passed to backend container.
+      # Useable in backend/ :
+      ## dockerfile
+      ## main.rs
       COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-mywebapp}
       CONTAINER_NAME: ${COMPOSE_PROJECT_NAME:-mywebapp}_backend
 
