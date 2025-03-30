@@ -60,7 +60,6 @@ function get_repo_info() {
     read GITHUB_REPO
     
     if [[ -z "$GITHUB_REPO" ]]; then
-        echo "Using default: $DEFAULT_REPO"
         GITHUB_REPO="$DEFAULT_REPO"
     fi
     
