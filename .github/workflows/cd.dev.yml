@@ -1,5 +1,5 @@
 # cd.dev.yml
-name: dev CI/CD Pipeline
+name: dev - Continuous Deployment
 
 on:
   push:

@@ -1,5 +1,5 @@
 # cd.prod.yml
-name: CI/CD Pipeline
+name: prod - Continuous Deployment
 
 on:
   push:
