@@ -138,6 +138,7 @@ jobs:
 
       - name: Transfer files to server
         run: |
+          # SERVER_DEST_BASE
           SERVER_DEST_BASE="${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.DEPLOY_DIR }}"
 
           # mkdir
