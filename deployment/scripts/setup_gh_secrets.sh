@@ -16,8 +16,10 @@ if ! gh auth status &>/dev/null; then
 fi
 
 # --- End Configuration ---
+BASE_ENV_FILE_PATH="../../"
 
-DEFAULT_ENV_FILE=".env.production"
+DEFAULT_ENV_FILE="$BASE_ENV_FILE_PATH.env.production"
+
 
 # Set environment variables
 function select_environment() {
@@ -36,13 +38,15 @@ function select_environment() {
         ENV_NAME="production"
     fi
 
-    DEFAULT_ENV_FILE=".env."$ENV_NAME
+    DEFAULT_ENV_FILE="$BASE_ENV_FILE_PATH.env.$ENV_NAME"
+    ENV_FILE=".env.$ENV_NAME"
     
   
 
     echo "Setting secrets for $ENV_NAME environment..."
 }
 
+DEFAULT_REPO="AlekOmOm/rust-actix-web_CD"
 DEFAULT_SSH_USER="deploy"
 DEFAULT_SSH_KEY_FILE="~/.ssh/id_rsa"
 DEFAULT_SERVER_PORT="22"
@@ -52,12 +56,12 @@ DEFAULT_SERVER_PORT="22"
 
 # Collect and validate repo info
 function get_repo_info() {
-    echo "Enter the GitHub repository (e.g., your-username/your-repo-name):"
+    echo "Enter the GitHub repository [${DEFAULT_REPO}]:"
     read GITHUB_REPO
     
     if [[ -z "$GITHUB_REPO" ]]; then
-        echo "Error: GitHub repository cannot be empty."
-        exit 1
+        echo "Using default: $DEFAULT_REPO"
+        GITHUB_REPO="$DEFAULT_REPO"
     fi
     
     if ! [[ "$GITHUB_REPO" =~ ^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$ ]]; then
@@ -87,7 +91,7 @@ function get_secret_values() {
     SERVER_PORT=${SERVER_PORT:-$DEFAULT_SERVER_PORT}
     read -p "Enter the path to the PRIVATE SSH key file [${DEFAULT_SSH_KEY_FILE}]: " SSH_KEY_FILE
     SSH_KEY_FILE=${SSH_KEY_FILE:-$DEFAULT_SSH_KEY_FILE}
-    read -p "Enter the path to the ${ENV_NAME} .env file [${DEFAULT_ENV_FILE}]: " ENV_FILE_PATH
+    read -p "Enter the path to the ${ENV_NAME} .env file from project root [${ENV_FILE}]: " ENV_FILE_PATH
     ENV_FILE_PATH=${ENV_FILE_PATH:-$DEFAULT_ENV_FILE}
     read -s -p "Enter your GitHub PAT with read:packages scope (GHCR_PAT_OR_TOKEN): " GHCR_PAT_OR_TOKEN
     echo # Add newline after hidden input
@@ -165,7 +169,7 @@ function confirm_settings() {
     echo "SERVER_USER:       $SERVER_USER"
     echo "SERVER_PORT:       $SERVER_PORT"
     echo "SSH_PRIVATE_KEY:   (from file $SSH_KEY_FILE)"
-    echo "ENV_FILE:          (from file $ENV_FILE_PATH)"
+    echo "ENV_FILE:          (from file .env$ENV_NAME)"
     echo "GHCR_PAT_OR_TOKEN: (hidden)"
     echo "---------------------------------"
     read -p "Proceed? (y/N): " confirm

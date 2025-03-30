@@ -37,6 +37,7 @@ HEALTH_ENDPOINT="http://localhost:${HOST_PORT_FRONTEND}/api/health"
 cleanupRollback() {
   # Rename rollback file
   mv .env.rollback .env.previous 2>/dev/null || echo "No rollback file to rename"
+  mv .env .env.failed 2>/dev/null || echo "No current env file to rename"
   
   # Remove files, don't error if they don't exist
   rm -f .env.previous 2>/dev/null
