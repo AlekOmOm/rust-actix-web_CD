@@ -49,7 +49,11 @@ export default defineConfig(({ command, mode }) => {
 
   // Build the backend URL
   const backendHost = env.BACKEND_HOST || "localhost";
-  const backendUrl = `http://${backendHost}:${hostPort}`;
+  // Build the backend URL for local development proxying
+  const backendUrl =
+    mode === "production"
+      ? `http://${backendHost}:${backendPort}` // In production, use internal port
+      : `http://localhost:${hostPort}`; // In development, use host port
 
   return {
     plugins: [react()],
